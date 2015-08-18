@@ -1,0 +1,94 @@
+#!/bin/sh
+
+# Source code provided to STI is at ${HOME}/source
+LOCAL_SOURCE_DIR=${HOME}/source
+mkdir -p $LOCAL_SOURCE_DIR
+
+# Resulting WAR files will be deployed to /opt/eap/standalone/deployments
+DEPLOY_DIR=$JBOSS_HOME/standalone/deployments
+
+# JBoss AS data dir. Can be overridden.
+DATA_DIR=${DATA_DIR-$JBOSS_HOME/data}
+
+# the subdirectory within LOCAL_SOURCE_DIR from where we should copy build
+# artifacts (*.war, *.jar)
+ARTIFACT_DIR=${ARTIFACT_DIR-target}
+
+## The proxy config to be injected into /home/jboss/.m2/settings.xml 
+## won't be injected if CUSTOM_PROXY_PORT and CUSTOM_PROXY_HOST are not present
+##   "source": {
+##             "type": "Git",
+##             "git": {
+##                "uri": "https://github.com/ivanthelad/openshift-jee-sample.git"
+##            }
+##         },
+##         "strategy": {
+##             "type": "Source",
+##             "sourceStrategy": {
+##                 "from": {
+##                    "kind": "ImageStreamTag",
+##                    "namespace": "openshift",
+##                    "name": "jboss-eap6-openshift:6.4"
+##                 },
+##                 "env": [
+##                     {
+##                         "name": "CUSTOM_PROXY_HOST",
+##                         "value": "heheheh"
+##                    },
+##                     {
+##                         "name": "CUSTOM_PROXY_PORT",
+##                         "value": "heheheh"
+##                     }
+ ##                ]
+ ##            }
+
+ CONTENT="<proxies> 
+    <proxy>
+      <id>myproxy</id>
+      <active>true</active>
+      <protocol>http</protocol>
+      <host>${CUSTOM_PROXY_HOST}</host>
+      <port>${CUSTOM_PROXY_PORT}</port>
+       <password>${CUSTOM_PROXY_PASSWORD}</password>
+       <username>${CUSTOM_PROXY_USER}</username>
+    </proxy>
+        <proxy>
+      <id>myproxy2</id>
+      <active>true</active>
+      <protocol>https</protocol>
+      <host>${CUSTOM_PROXY_HOST}</host>
+      <port>${CUSTOM_PROXY_PORT}</port>
+       <password>${CUSTOM_PROXY_PASSWORD}</password>
+       <username>${CUSTOM_PROXY_USER}</username>
+    </proxy>
+  </proxies>"
+
+function copy_artifacts() {
+  if [ -d $LOCAL_SOURCE_DIR/$1 ]; then
+    echo "Copying all WAR and EAR artifacts from $LOCAL_SOURCE_DIR/$1 directory into $DEPLOY_DIR for later deployment..."
+    cp -v $LOCAL_SOURCE_DIR/$1/*.jar $LOCAL_SOURCE_DIR/$1/*.war $LOCAL_SOURCE_DIR/$1/*.ear $DEPLOY_DIR 2> /dev/null
+  fi
+}
+
+# Copy the source for compilation
+cp -ad /tmp/src/* $LOCAL_SOURCE_DIR
+
+# If a pom.xml is present, this is a normal build scenario
+# so run maven.
+
+# Copy (probably binary) artifacts from the deployments/
+# directory to the $JBOSS_HOME/standalone/deployments/
+# directory for later deployment
+copy_artifacts "deployments"
+#icp deployments/jboss-kitchensink.war   $DEPLOY_DIR 2> /dev/null
+if [ -d $LOCAL_SOURCE_DIR/configuration ]; then
+  echo "Copying config files from project..."
+  cp -v $LOCAL_SOURCE_DIR/configuration/* $JBOSS_HOME/standalone/configuration/
+fi
+
+if [ -d $LOCAL_SOURCE_DIR/modules ]; then
+  echo "Copying modules from project..."
+  cp -vr $LOCAL_SOURCE_DIR/modules/* $JBOSS_HOME/modules/
+fi
+
+exit 0
